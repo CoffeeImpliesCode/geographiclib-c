@@ -1,0 +1,70 @@
+# SHA-256 of every upstream file this package ships unmodified from
+# geographiclib-c v2.2 (tag v2.2, commit
+# 321c9a61359661fc2afa650dc888f5b1f5652443,
+# https://github.com/geographiclib/geographiclib-c.git).
+#
+# 23 records. The set is the complete file list of the pinned upstream commit as
+# it stands in this working tree, minus `.gitignore` (see "Deliberately absent"
+# below). geographiclib-c is a small standalone project: the whole upstream tree
+# is 24 files and 338,003 bytes, so a dependent receives upstream's project
+# rather than a hand-picked subset of it. Nothing is dropped for size, and
+# nothing is dropped for being unusable by this build: `doc/`, `tools/`,
+# `proj-example/` and every `CMakeLists.txt` travel even though the Zig build
+# compiles none of them, so the audit surface stays the whole upstream tree.
+#
+# Deliberately absent, each for a stated reason:
+#   .gitignore -- upstream's three lines (`*~`, `BUILD*/`, `distrib-C/`) are kept
+#     verbatim and the Zig build cache entries are appended after them, so the
+#     file is no longer byte-identical to upstream's. The pristine upstream
+#     digest is recorded as a comment on its own line below rather than as a
+#     checkable record, and the append is itemised in NOTICE.md.
+#   build.zig, build.zig.zon, zig/, tests.zig, smoke.zig, consumer/,
+#   cross-test.profile.sh, .github/workflows/verify.yml, testdata/,
+#   UPSTREAM.sha256, UPSTREAM.md, NOTICE.md, README.zig.md, README.md,
+#   FORK-LICENSE.md, CHANGELOG.md, FORK-NOTES.md, package.nix, flake.nix,
+#   devenv.nix, devenv.yaml and .envrc -- this fork's own files, listed in
+#   NOTICE.md. flake.lock and devenv.lock are not in the tree either: they are
+#   the driver's to create, and this record does not cover generated files.
+#
+# One record names a path that is not the upstream path. Upstream's README.md
+# was preserved byte for byte as README.upstream.md when this fork's README.md
+# took over the fork README, so the record reads README.upstream.md with the
+# same digest it always had. The bytes are unchanged; only the name in the tree
+# moved, and the name in a record has to move with the file. NOTICE.md and
+# CHANGELOG.md entry 22 carry the relocation; README.upstream.md is upstream's
+# standalone C README and not the C++ GeographicLib README.
+#
+# These are the bytes in this working tree, hashed with `sha256sum` on
+# 2026-10-03 after the clone was checked out at the pinned commit. They are not a
+# signature and not a Git object id: see UPSTREAM.md, "Integrity", for what they
+# do and do not establish. No Git command was run to produce them; the working
+# tree's identity as the pinned commit is stated in UPSTREAM.md from `.git/HEAD`
+# and `.git/packed-refs`, which were read as files.
+#
+# Verify with:  sha256sum -c UPSTREAM.sha256
+#
+# Pristine upstream `.gitignore`, 22 bytes, for the record only:
+#   f030240ae4d14a041632c0b3f94fa9211f594cc7ad7b54d9a0e1a8dc33b93828  .gitignore
+4cc0dcf8b5a1c0d63dc29259e7731a8539e4cfeff30d73effc677039b07d090c  CMakeLists.txt
+85e489ff36496ceabe2a2b4b44e05870616ac60b49c526161c8ba464cba082c3  HOWTO-RELEASE.txt
+44e8d5e992a01915a3522d48296b8a684df5641e8162be44431c9911b9e9f32b  LICENSE.txt
+2c23a53ee20fa22e9282bf44868f258f416a1e02d666bcf0d8be8a789d08a06d  README.upstream.md
+391c8f48d8a1b52aa0a765224262251c37b3a14f01454d68ae7fb188e6b2f923  distrib-C/00README.md
+dce0e6af23a9e607e9f29fe78aea5286933aa8095252399ebd1d0060a5e0e787  doc/.htaccess
+198718ed9b4305b4b39ffb1156d66276e6d65dacffcb26cac406dc478a5e9468  doc/CMakeLists.txt
+df55ca282877e9ba3ef153db487522620e73483fae86c9010c8e9c4c7ea3c096  doc/FOOTER.html
+7250758adc846f35916089de1d7c3b15243944df03d53e89becd8f0266147a42  doc/HEADER.html
+5ee63e5cc3c0ac0a48b2ee733aa7b1df0f723e7f78bf19d5db291d8dc86743b9  doc/doxyfile.in
+0308900f8a7525a3be3d356f9b46dccaca4030763aec1293955bd7aead23b543  doc/geodesic-c.dox.in
+9d987b3e9b54accc6a73e53137b9b0ce0bccc43f571c5952daf53974d61d1c0b  proj-example/CMakeLists.txt
+3fba3f862bbf786e8d28bd6d80e8d5cead64230d51dd398bed38ff52e2cc92dc  proj-example/proj-example.c
+4e733a0a4373a4f62ecd3e037fe082ddfd2168593f3301dacf6734bf6d801969  src/CMakeLists.txt
+87a91e0e30e7db839cbd1ef5aafea77487524958070565ff9155e50e9bead550  src/geodesic.c
+a964a747bc4f388fb3a93cc9bc379aebe4cdd78b3ee909c071be711b82db4b10  src/geodesic.h
+d2b969178022a91ae890a101ee57d4c7099a7d9045a8f678f29cda55050d5a19  tests/CMakeLists.txt
+2b9518614d83f802f3438c4f4a85e2a7bf6b8b6c27931a2538dcc058c0de4f00  tests/geodsigntest.c
+884a9b88fc9a542220e4ee6996d9a177d9bb4cad5bab92f402cae42c0caad786  tests/geodtest.c
+be2704a8c57061aed39a117899c635143fe8d10eddc1c6e103616e9765f2d9a4  tools/CMakeLists.txt
+b3e3bfe4332583408c492b13c48c3a50f6b8fd2fddf79b439b2de77019507f25  tools/direct.c
+e971c44ddf5a308b40ba57c011c8335ed70ac328ea543542ac6719dc79ed7958  tools/inverse.c
+996c74bcc56cc8e20164be4df97bc4cb035449170cc4fdc7ebe8b33fe0bf3e09  tools/planimeter.c

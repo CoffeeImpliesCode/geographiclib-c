@@ -1,0 +1,61 @@
+CMake options
+  CONVERT_WARNINGS_TO_ERRORS = ON
+  BUILD_DOCUMENTATION = ON
+  BUILD_SHARED_LIBS = ON
+
+Targets
+  all test
+  doc (if BUILD_DOCUMENTATION and doxygen found)
+  dist (makes package_source and checks for unwanted files)
+  sanitize
+  stage-{doc,dist}
+  deploy-{doc,dist}
+  proj-example (uses version of library included in PROJ)
+  stage-proj (copies source to PROJ)
+
+not supported:
+  install (distribution is via PROJ)
+  package
+
+Version update checks
+
+Add PROJECT_VERSION_SUFFIX = "-alpha" to
+  tar package of source
+
+Do not add PROJECT_VERSION_SUFFIX to
+  unpack directory for tar package
+  documentation
+
+Update version in
+  src/geodesic.h GEODESIC_VERSION_*
+  doc/geodesic-c.dox.in (date + update change log)
+  remove alpha versions in distrib-C
+
+After deployment reset link
+
+  ~/web/geographiclib-web/htdocs/C/doc
+
+to latest version.  Check in and create git tag.
+
+PROJ integration...
+
+make stage-proj does
+PROJDIR=$HOME/git/PROJ
+cp -p src/geodesic.? $PROJDIR/src
+cp -p tests/geod{,sign}test.c $PROJDIR/src/tests/
+
+also changes needed in
+  docs/source/apps/geod.rst
+  docs/source/geodesic.rst
+  src/apps/geod_interface.cpp
+  src/apps/bin_geod.cmake
+  src/init.cpp
+  src/tests/CMakeLists.txt
+
+After release, issue a PR for PROJ
+
+R package geosphere:
+Robert J. Hijmans <r.hijmans@gmail.com>
+
+Notify @xylar about need for updated patch for
+https://github.com/conda-forge/proj.4-feedstock

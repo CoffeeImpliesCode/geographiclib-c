@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: MIT
+//
+// Fork-authored. `FORK-LICENSE.md` in the parent directory records the owner's
+// authorization of that grant for this file, and `../LICENSE.txt` holds
+// upstream's own MIT/X11 text.
+//
+
+.{
+    .name = .geographiclib_c_consumer,
+    // The consumer's own version. It is a different package from the library
+    // and carries none of upstream's version; the library's version is the one
+    // in the parent manifest, read out of upstream's CMakeLists.txt and
+    // src/geodesic.h.
+    .version = "0.1.0",
+    // Separate from the library's fingerprint because this is a different
+    // package with a different name. It exists to prove that the library's
+    // published module can be consumed by a package that did not write it.
+    .fingerprint = 0x92f33bd4df66f277, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        // A relative path, not a registry or archive URL. The consumer is the
+        // proof that `dep.module("geographiclib")` works from outside the
+        // package that defines it; resolving that through the network would
+        // make the proof depend on a published state of the world instead.
+        .geographiclib_c = .{ .path = ".." },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

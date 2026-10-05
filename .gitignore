@@ -1,0 +1,12 @@
+*~
+BUILD*/
+distrib-C/
+# Zig build outputs of this fork. Upstream's three rules above are unchanged
+# and still apply; these four cover what a Zig build adds to this tree, and the
+# last two are the consumer package's own outputs because it is a separate Zig
+# package inside this repository.
+.zig-cache/
+zig-out/
+zig-pkg/
+consumer/.zig-cache/
+consumer/zig-out/

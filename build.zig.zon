@@ -1,0 +1,172 @@
+// SPDX-License-Identifier: MIT
+//
+// Fork-authored. `FORK-LICENSE.md` records the owner's authorization of that
+// grant for this file, and `LICENSE.txt` holds upstream's own MIT/X11 text.
+//
+
+.{
+    // The package id and the name a dependent writes in its dependency map.
+    .name = .geographiclib_c,
+    // Upstream's own version, read out of CMakeLists.txt:5-13
+    // (PROJECT_VERSION_MAJOR 2, MINOR 2, PATCH 0, SUFFIX ""; the `if
+    // (PROJECT_VERSION_PATCH GREATER 0)` at :9-11 leaves the string at "2.2")
+    // and out of src/geodesic.h:29,34,39 (GEODESIC_VERSION_MAJOR 2, _MINOR 2,
+    // _PATCH 0). This is the version of the C library this package builds, not
+    // a version of the wrapper, so it is upstream's two-component "2.2" spelled
+    // in the three components a Zig package manifest requires.
+    .version = "2.2.0",
+    // Reported by the Zig 0.16.0 compiler for this package name; the receipt
+    // belongs in FORK-NOTES.md, which this fork's provenance owner writes from
+    // the observed output. It identifies this fork and is not derived from any
+    // upstream Zig package, because there is no upstream Zig package to be a
+    // fork of.
+    .fingerprint = 0x3074e6218ff3adac, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.16.0",
+    // Nothing is fetched: the C library is this repository's own source and the
+    // facade, tests and example import only what is compiled here.
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        // The cross-test harness profile for this package. It is a file in the
+        // package because it is how this package declares what its
+        // cross-platform gate is: `cross-test` discovers it by name from the
+        // package root, and it is settings only - the standard `zig build
+        // test` step over the full published 53-platform matrix, no target
+        // subset and no host path. Nothing in build.zig reads it.
+        "cross-test.profile.sh",
+        // zig/root.zig is the facade, zig/api_exercise.zig the explicit
+        // exercise of every public facade method that `check` compiles, and
+        // zig/translate.h the one translated header. All three travel so the
+        // fetched package can build its facade and independent gate programs.
+        "zig",
+        // Upstream's C library, unmodified: src/geodesic.c is the whole core
+        // (src/CMakeLists.txt:1) and src/geodesic.h is its public header, which
+        // the install step and the translation both use. The directory travels
+        // rather than a hand-picked pair of files so that the tree a dependent
+        // receives is upstream's tree, and src/CMakeLists.txt travels with it
+        // because it is what names the library.
+        "src",
+        // Upstream's own C test programs, unmodified, which the upstream-test
+        // step builds and runs. tests/CMakeLists.txt is what records why
+        // geodsigntest does not link the archive.
+        "tests",
+        // Upstream's example programs, their own CMake list and the PROJ
+        // example. Nothing in this package compiles them; they are upstream's
+        // material and are retained, not reimplemented or dropped.
+        "tools",
+        "proj-example",
+        // Upstream's Doxygen inputs and the generated-page furniture. No gate
+        // in this package runs doxygen, and nothing reads these files; they
+        // travel because deleting upstream material this fork did not replace
+        // would make the tree a partial import.
+        "doc",
+        // Upstream's distribution placeholder, and its release instructions.
+        "distrib-C",
+        "HOWTO-RELEASE.txt",
+        "tests.zig",
+        "smoke.zig",
+        // The fixture material this fork gates against, with its own licence
+        // and provenance beside it: testdata/geodtest-cases.txt and
+        // testdata/LICENSE.md, plus the README that records where each file
+        // came from. The whole directory travels, licence included. Whether
+        // a given gate reads the corpus is the facade's own statement, in
+        // tests.zig; the package carries the material either way.
+        "testdata",
+        // The separate consumer package: proof that the published module
+        // resolves from a package that did not write it, through a relative
+        // path rather than a fetch.
+        //
+        // Its three files, named one by one, and not the `consumer` directory.
+        // This build's own `consumer` step compiles `consumer/src/main.zig`
+        // inside the parent graph (build.zig:546-548) and therefore never
+        // writes into that directory, but the consumer is a package in its own
+        // right: running `zig build` in it, which is exactly what the CI's
+        // consumer step does, creates `consumer/.zig-cache` and
+        // `consumer/zig-out` unless that build is given an explicit
+        // `--cache-dir`. Listing the directory would carry both into every
+        // fetched copy and make the package hash change as a side effect of
+        // building it. Naming the three files is what makes the allowlist true
+        // regardless of what a build has left behind, and it needs no
+        // `.exclude`: an exclusion list names paths that are not in the
+        // package, which is not the same statement as naming the paths that
+        // are.
+        "consumer/build.zig",
+        "consumer/build.zig.zon",
+        "consumer/src/main.zig",
+        // Upstream's own README, its licence, its build system and this fork's
+        // ignore rules. CMakeLists.txt travels because build.zig cites it for
+        // the version, the library name, the C standard and the library's
+        // source list; it is not executed.
+        "README.md",
+        // This fork's preserved copy of upstream's own front page, which the
+        // install step copies to share/doc/geographiclib/. It is named here
+        // because a fetched package that lacked it would fail `zig build`
+        // rather than install a smaller closure.
+        "README.upstream.md",
+        "CMakeLists.txt",
+        "LICENSE.txt",
+        ".gitignore",
+        "UPSTREAM.md",
+        "UPSTREAM.sha256",
+        "README.zig.md",
+        "NOTICE.md",
+
+        // This fork's own grant. It is named here because the install step
+        // resolves it at configure time, not at run time: `licence_records`
+        // (build.zig:413) carries it and `installRecords` resolves every
+        // record with `b.path`, so a filtered copy that lacked it would fail
+        // to configure rather than install a smaller closure. It sits beside
+        // `NOTICE.md` because a downstream has to keep the two together - the
+        // grant, and the per-file inventory that says which files it covers.
+        "FORK-LICENSE.md",
+        "CHANGELOG.md",
+        "FORK-NOTES.md",
+        // The runtime-loading route, which `build.zig` imports at configure
+        // time (`@import("runtime/graph.zig")`) to build the dispatch that
+        // replaces `translate.createModule()` under `-Druntime=true`. It is
+        // named for the same reason `zig` is: the default build cannot
+        // configure without it. Its contents belong to the API role; this file
+        // only says they travel.
+        "runtime",
+        // This fork's own CI definition. It travels with the package because it
+        // is how the package says which of the steps above are gates and in
+        // what order they run; nothing in build.zig reads it, and no step in
+        // it is a substitute for one the driver runs here.
+        ".github",
+        // The Nix packaging layer and the canonical development environment,
+        // one file at a time. All six are real files in this tree and every one
+        // of them is a published route, not incidental material: `package.nix`
+        // is the single source-only derivation, `flake.nix` exposes
+        // `packages.<system>.static` and `.shared` from it, `flake.lock` is
+        // that flake's resolved input, and `devenv.nix` + `devenv.yaml` +
+        // `.envrc` are the shell that develops the SDK.
+        //
+        // Nothing in build.zig reads any of them, so their absence would not
+        // stop this package from configuring; it would mean a dependent that
+        // fetches this package receives a tree missing the entire packaging
+        // and development-environment layer its own README documents. That is
+        // why they are named rather than left to a directory sweep.
+        "package.nix",
+        "flake.nix",
+        "flake.lock",
+        "devenv.nix",
+        "devenv.yaml",
+        ".envrc",
+        // The install closure is complete above and the advertised layer is
+        // carried: the install step reads `LICENSE.txt`, `NOTICE.md`,
+        // `FORK-LICENSE.md`, `UPSTREAM.md`, `UPSTREAM.sha256`,
+        // `README.upstream.md`, `src/geodesic.h` and `doc/{geodesic-c.dox.in,
+        // doxyfile.in,HEADER.html,FOOTER.html}`, and every one of those paths is
+        // named in this list.
+        //
+        // `.zig-cache/`, `zig-out/` and `zig-pkg/` are absent by construction:
+        // no entry above names a directory that a build writes into except
+        // `consumer`, and that one is listed as its three files. The Nix and
+        // devenv working-tree artefacts are absent for the same reason - they
+        // are shell state and a `result` symlink, not source. `.git/` is never
+        // named either, and `devenv.lock` is not named because it does not
+        // exist in this tree: naming a path that is absent is a fetch error,
+        // not an exclusion. See `.gitignore`, which travels with the package.
+    },
+}
