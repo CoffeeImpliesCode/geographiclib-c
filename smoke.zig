@@ -1,28 +1,5 @@
-//! A runnable tour of the GeographicLib C geodesic facade.
-//!
-//! `zig build smoke` runs this; `zig build check` compiles it for every cross
-//! target without running it. It reaches the library only through
-//! `@import("geographiclib")`, the same name a dependent gets from
-//! `dep.module("geographiclib")`, so what it proves is about the published
-//! module and nothing else.
-//!
-//! Every number it prints is checked against an independent answer first, and
-//! the answers come from two places that have nothing to do with this module:
-//! upstream's published regression values in `tests/geodtest.c`, and geometry —
-//! a quarter turn along the equator of a sphere is exactly a quarter of its
-//! circumference, and a square walked a kilometre along each side encloses one
-//! square kilometre. Anything unexpected returns an error, so the process exits
-//! non-zero rather than printing a wrong number.
-//!
-//! ## The provider, in a runtime-loading build
-//!
-//! A build with `-Druntime=true` links nothing native into the module, so this
-//! program has to be told which provider to open before it can ask the library
-//! anything: `--provider /path/to/libgeodc.so`, or the same path in
-//! `GEOGRAPHICLIB_TEST_PROVIDER`. With neither, it says so and exits non-zero
-//! rather than running against nothing. In the default linked build neither is
-//! needed and neither is read: `runtime_loaded` is false, so `geod_*` is a direct
-//! call and `load` is never called.
+//! Smoke test for linked and runtime-loaded GeographicLib-C calls.
+//! Runtime builds need `--provider` or `GEOGRAPHICLIB_TEST_PROVIDER`.
 
 const std = @import("std");
 const geographiclib = @import("geographiclib");
@@ -45,15 +22,10 @@ fn expect(condition: bool) !void {
     if (!condition) return error.UnexpectedResult;
 }
 
-/// A shared object exporting all 21 entry points of `src/geodesic.h`.
+/// Environment key for runtime provider selection.
 const provider_variable = "GEOGRAPHICLIB_TEST_PROVIDER";
 
-/// Which native library to open, or null in a linked build.
-///
-/// `--provider <path>` wins over the environment variable, so a caller can point
-/// this program at a different provider without changing the environment of the
-/// whole run. Neither channel falls back to the other: an explicit path is used
-/// or the run fails.
+/// Resolve the provider path; `--provider` takes precedence over the environment.
 fn resolveProvider(
     args: []const [:0]const u8,
     environ: *const std.process.Environ.Map,
@@ -110,9 +82,6 @@ pub fn main(init: std.process.Init) !void {
     var wgs84: geo.Geodesic = undefined;
     geo.Geodesic.init(&wgs84, wgs84_a, wgs84_f);
 
-    // Which route produced the numbers below is part of the answer: in a linked
-    // build every call above was a direct C call, and in a runtime-loading one
-    // every one went through the table this provider filled.
     if (geo.runtime_loaded) {
         try w.print(
             "runtime-loaded: provider {s}, loadedSource reports the same path\n",
@@ -122,9 +91,7 @@ pub fn main(init: std.process.Init) !void {
         try w.writeAll("linked: geod_* resolved at link time\n");
     }
 
-    // -- Direct and inverse -------------------------------------------------
-    // Wellington to Salamanca, the pair Vincenty's method cannot solve.
-    // Published at tests/geodtest.c:683-696.
+    // Vincenty's method cannot solve this near-antipodal pair (`tests/geodtest.c:683-696`).
     const wellington_to_salamanca = wgs84.inverse(
         -(41.0 + 19.0 / 60.0),
         174.0 + 49.0 / 60.0,
@@ -139,12 +106,7 @@ pub fn main(init: std.process.Init) !void {
         .{ wellington_to_salamanca.s12, wellington_to_salamanca.azi1, wellington_to_salamanca.azi2 },
     );
 
-    // The direct problem in upstream's own published numbers: start at a point
-    // of upstream's twenty-case regression table, walk the azimuth and distance
-    // that table gives for it, and arrive exactly where the table says. Both
-    // the inputs and the outputs are upstream's, and the tolerance is the one
-    // upstream's own testdirect uses for these three fields
-    // (tests/geodtest.c:162-166). Published at tests/geodtest.c:44-47.
+    // Published direct regression (`tests/geodtest.c:44-47`).
     const out_leg = wgs84.direct(
         35.60777,
         -139.44815,
@@ -159,10 +121,6 @@ pub fn main(init: std.process.Init) !void {
         .{ out_leg.lat2, out_leg.lon2, out_leg.azi2 },
     );
 
-    // -- Longitude unroll ---------------------------------------------------
-    // 20000 km from 40N 75W on azimuth 170W crosses the prime meridian going
-    // west, so the unrolled longitude comes back at 254W rather than 106E.
-    // Published at tests/geodtest.c:381-409.
     const wrapped = wgs84.genDirect(40.0, -75.0, -10.0, 2e7, .{});
     const unrolled = wgs84.genDirect(40.0, -75.0, -10.0, 2e7, .{ .long_unroll = true });
     try expectNear(105.0, wrapped.lon2, 1.0);
@@ -173,7 +131,7 @@ pub fn main(init: std.process.Init) !void {
         .{ wrapped.lon2, unrolled.lon2 },
     );
 
-    // -- A line, and what it will not do ------------------------------------
+    // Without distance capability, distance queries fail while arc queries work.
     var line: geo.GeodesicLine = undefined;
     wgs84.initLine(&line, 40.63972222, -73.77888889, 53.5, .{});
     try expect(line.capabilities().distance_in);
@@ -183,8 +141,6 @@ pub fn main(init: std.process.Init) !void {
         .{ midpoint.lat2, midpoint.lon2.?, midpoint.azi2 },
     );
 
-    // A line built without the distance capability refuses a distance and says
-    // so; an arc length in degrees still works on it.
     var by_arc_only: geo.GeodesicLine = undefined;
     wgs84.initLine(&by_arc_only, 40.0, -75.0, -10.0, .{ .longitude = true });
     const refused = line_capability_probe(&by_arc_only);
@@ -194,7 +150,6 @@ pub fn main(init: std.process.Init) !void {
     try expect(arc.s12 == null);
     try w.print("a line without Caps.distance_in refuses a distance; 90 deg of arc is {d:.3}\n", .{arc.lat2});
 
-    // -- A square, and a ring around a pole --------------------------------
     var square: geo.Polygon = geo.Polygon.init(.polygon);
     square.addPoint(&wgs84, 0.0, 0.0);
     square.addEdge(&wgs84, 90.0, 1000.0);
@@ -204,8 +159,7 @@ pub fn main(init: std.process.Init) !void {
     try expectNear(1000000.0, square_area.area.?, 0.01);
     try w.print("a 1 km square: {d:.6} m2, perimeter {d:.3} m\n", .{ square_area.area.?, square_area.perimeter });
 
-    // Four points on the parallel at 89N enclose the pole. Published at
-    // tests/geodtest.c:897-928.
+    // Published polar ring regression (`tests/geodtest.c:897-928`).
     const ring_lats = [_]f64{ 89, 89, 89, 89 };
     const ring_lons = [_]f64{ 0, 90, 180, 270 };
     const ring = try wgs84.arrayArea(&ring_lats, &ring_lons);
@@ -213,10 +167,7 @@ pub fn main(init: std.process.Init) !void {
     try expectNear(631819.8745, ring.perimeter, 1e-4);
     try w.print("a ring at 89N enclosing the pole: {d:.0} m2, perimeter {d:.4} m\n", .{ ring.area.?, ring.perimeter });
 
-    // -- The family this library covers, and no more ------------------------
-    // A sphere is a member of the two-parameter rotational family, and on a
-    // sphere every quarter of a great circle is the same length. Nothing about
-    // a triaxial body follows from two numbers, so nothing here can be one.
+    // The API models rotational ellipsoids, including spheres, not triaxial bodies.
     var sphere: geo.Geodesic = undefined;
     geo.Geodesic.init(&sphere, 6.4e6, 0.0);
     const quarter = (std.math.pi / 2.0) * 6.4e6;
@@ -224,9 +175,7 @@ pub fn main(init: std.process.Init) !void {
     try expectNear(quarter, sphere.inverse(0.0, 0.0, 90.0, 0.0).s12, 1e-6);
     try w.print("a sphere of radius 6.4e6 m: {d:.3} m per quarter great circle\n", .{quarter});
 
-    // The same question of three ellipsoids, answered three ways: over the
-    // pole on an oblate body, any way at all on a sphere, along the equator on
-    // a prolate one. Published at tests/geodtest.c:436-492.
+    // Antipodal shortest paths differ by shape (`tests/geodtest.c:436-492`).
     const antipodes = [_]struct { name: []const u8, a: f64, f: f64 }{
         .{ .name = "WGS84 oblate", .a = wgs84_a, .f = wgs84_f },
         .{ .name = "sphere", .a = 6.4e6, .f = 0.0 },
@@ -245,9 +194,7 @@ pub fn main(init: std.process.Init) !void {
     try w.flush();
 }
 
-/// Ask a line for a position it cannot compute and report which refusal it
-/// gave. `error.NoRefusal` means the call succeeded, which is the failure this
-/// demonstration is looking for.
+/// Query a line without distance capability and return its refusal.
 fn line_capability_probe(line: *const geo.GeodesicLine) anyerror {
     _ = line.position(1000.0) catch |err| return err;
     return error.NoRefusal;

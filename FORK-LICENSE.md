@@ -1,15 +1,7 @@
 # FORK-LICENSE.md — the licence for this fork's own files
 
-Upstream's grant is `LICENSE.txt`; the per-file inventory is `NOTICE.md`. This
-file covers the files **this fork wrote**, and nothing else.
-
-## Authorization
-
-The owner authorized a licence for the fork-authored additions, to be chosen per
-project and to match the primary upstream terms where appropriate
-(`foundation-libs/AGENTS.md` § 8). That record supersedes the paragraph this
-repository used to carry in `NOTICE.md` saying it states no licence for those
-files. `CHANGELOG.md` entry 22 keeps the earlier wording as history.
+Upstream's grant is `LICENSE.txt`; `NOTICE.md` maps files to licence terms.
+This grant covers the fork-authored files listed below, not upstream work.
 
 ## Grant
 
@@ -39,76 +31,24 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-The text is upstream's `LICENSE.txt` character for character; only the holder
-line differs. Upstream's grant is the same licence (`LICENSE.txt`,
-"Copyright (c) 2012-2025, Charles Karney"; `README.upstream.md:10-11` states
-"Licensed under the MIT/X11 License"), which is the matching-term case in its
-simplest form.
-
-The holder line names the fork's authorship collectively because no personal or
-copyright identity was supplied for it. It is **not** Charles F. F. Karney, who
-wrote none of these files; his copyright over his own work is in `LICENSE.txt`
-and in the per-file notices `NOTICE.md` lists. This line is the only place the
-holder appears, so supplying a name later changes this file and nothing else.
+This text matches upstream's `LICENSE.txt` except for the holder line; upstream also identifies MIT/X11 terms in `README.upstream.md`.
+The collective holder identifies fork-authored work, not Charles F. F. Karney's; his copyright remains in `LICENSE.txt` and the per-file notices in `NOTICE.md`.
 
 ## Covered
 
-`build.zig`, `build.zig.zon`, `zig/` (`root.zig`, `translate.h`,
-`api_exercise.zig`), `runtime/` (`loader.zig`, `library.zig`, `graph.zig`,
-`generate.zig`, `sync.h`, `sync.c`), `tests.zig`, `smoke.zig`, `consumer/`,
-`cross-test.profile.sh`, `.github/workflows/verify.yml`, `package.nix`,
-`flake.nix`, `flake.lock`, `devenv.nix`, `devenv.yaml`, `.envrc`, `README.md`,
-`README.zig.md`, `CHANGELOG.md`, `FORK-NOTES.md`, `NOTICE.md`, `UPSTREAM.md`,
-`UPSTREAM.sha256`, and `testdata/README.md` and `testdata/LICENSE.md`.
+Covered paths: `build.zig`, `build.zig.zon`, `zig/` (`root.zig`, `translate.h`, `api_exercise.zig`), `runtime/` (`loader.zig`, `library.zig`, `graph.zig`,
+`generate.zig`, `sync.h`, `sync.c`), `tests.zig`, `smoke.zig`, `consumer/`, `cross-test.profile.sh`, `package.nix`, `flake.nix`, `flake.lock`, `devenv.nix`,
+`devenv.yaml`, `.envrc`, `README.md`, `README.zig.md`, `CHANGELOG.md`, `FORK-NOTES.md`, `NOTICE.md`, `UPSTREAM.md`, `UPSTREAM.sha256`, `testdata/README.md` and `testdata/LICENSE.md`.
 
-`runtime/` is named here because its six files are fork-authored and every one of
-them carries the SPDX identifier below; `build.zig` imports `runtime/graph.zig` at
-configure time, so the default build cannot configure without them, and a fetched
-package carries them in `.paths`. `flake.lock` is named because it is a file in
-this tree that upstream did not ship: it is the resolution Nix wrote for
-`flake.nix`'s input, and it travels in `.paths` beside the flake. `devenv.lock`
-is in neither list and is not named in `.paths`, because it does not exist in
-this tree.
-
-**`testdata/geodtest-cases.txt` is a mix.** Its 240 numeric literals are
-transcribed from `tests/geodtest.c` and are upstream's, under upstream's grant,
-carrying the notice at `testdata/geodtest-cases.txt:13-14`. This fork's
-arrangement of them — format, column layout, ordering, header — is under the
-grant above. `testdata/LICENSE.md` records the split.
+The six fork-authored `runtime/` files carry MIT SPDX. `flake.lock` is not upstream's and is included in `.paths`; `devenv.lock` is absent and not included.
+`testdata/geodtest-cases.txt` contains 240 upstream literals from `tests/geodtest.c` plus this fork's covered arrangement; the data file carries upstream's notice, and `testdata/LICENSE.md` records the split.
 
 ## Not covered
 
-* All 24 upstream paths, under upstream's own terms. Seven carry a notice in
-  their own bytes and are byte-identical.
-* `doc/doxyfile.in`, a third-party Doxygen template carried byte for byte with no
-  notice in it. No term is asserted over it.
-* PROJ, which `proj-example/` needs and this fork neither ships nor builds.
+- All 24 upstream paths remain under upstream terms; seven include notices and are byte-identical.
+- `doc/doxyfile.in` is a byte-identical third-party template; no terms are asserted over it.
+- PROJ is not shipped; `proj-example/` depends on it.
 
-## Install paths
+Installed under `zig-out/` and `$out`: `LICENSE.txt` (upstream grant, at the prefix root); `share/licenses/geographiclib/FORK-LICENSE.md`, `NOTICE.md`, `UPSTREAM.md` and `UPSTREAM.sha256`; `share/doc/geographiclib/README.upstream.md`.
 
-The build graph owns every installed path, so one file installs each grant:
-
-| Output | Path | File |
-|---|---|---|
-| `zig-out/`, `$out` | `LICENSE.txt` | upstream's grant, unmodified, at the prefix root |
-| `zig-out/`, `$out` | `share/licenses/geographiclib/FORK-LICENSE.md` | this grant |
-| `zig-out/`, `$out` | `share/licenses/geographiclib/NOTICE.md` | the per-file inventory |
-| `zig-out/`, `$out` | `share/licenses/geographiclib/UPSTREAM.md`, `UPSTREAM.sha256` | the pin |
-| `zig-out/`, `$out` | `share/doc/geographiclib/README.upstream.md` | upstream's README, preserved |
-
-The two `share/` directory names are the **module** name, `geographiclib` — the
-same string as `package.nix`'s `passthru.zigModuleName` — not the package name
-`geographiclib_c`, the artifact `geodc`, or the derivation's `pname`
-`geographiclib-c`. A grant is reachable at the path the build graph actually
-writes, so the path is recorded here as it is installed rather than as the
-package is named.
-
-`package.nix` adds no path: the derivation runs `zig build install` and stops.
-
-## SPDX identifier
-
-Fork-authored source and build files carry `# SPDX-License-Identifier: MIT`.
-No upstream file gains one: upstream's C, headers, tests, tools, documentation
-and licence text are unmodified. Markdown files do not carry it.
-
-Local, uncommitted and unpublished; nothing here has been distributed.
+Fork-authored source and build files carry `# SPDX-License-Identifier: MIT`; upstream files remain unchanged. Markdown files carry no SPDX line.

@@ -1,11 +1,4 @@
 # yaml-language-server: $schema=https://devenv.sh/devenv.schema.json
-#
-# One input, pinned by revision so the compiler is the one in the file: the
-# revision ../simd/devenv.lock resolves `nixpkgs-src` to. `devenv.lock` is the
-# driver's to create and is where any hash belongs.
-#
-# `flake.nix` declares the same input for its own resolution; the flake and the
-# shell have separate locks and neither reads the other's.
 inputs:
   nixpkgs:
     url: github:cachix/devenv-nixpkgs/c2f38fe7f9e04d9aadd354d380f2bd40531d9737

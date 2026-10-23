@@ -1,41 +1,5 @@
-//! Behavioural tests for the GeographicLib C geodesic facade.
-//!
-//! Every expected value here is either a published upstream regression answer
-//! from `tests/geodtest.c`, at the tolerance upstream states, or plain geometry
-//! that needs no library at all — a quarter turn along the equator of a sphere
-//! is exactly a quarter of its circumference, and a kilometre square walked at
-//! right angles encloses one square kilometre. Nothing here asserts that a
-//! declaration exists, that a call returns something, or that the facade agrees
-//! with itself.
-//!
-//! The corpus is the full 20-case table from `tests/geodtest.c:43-123`. It is
-//! consumed whole and in order: a filtered or sampled subset would be a
-//! different table, and the point of a reference corpus is that all twenty
-//! lines are checked.
-//!
-//! Units follow the library: degrees for latitude, longitude, azimuth and arc
-//! length; metres for distance, reduced length and perimeter; square metres for
-//! area under a geodesic and for polygon area; `M12` and `M21` are
-//! dimensionless.
-//!
-//! ## The provider, in a runtime-loading build
-//!
-//! A build with `-Druntime=true` links nothing native into the module, so every
-//! case below needs a provider before it can ask the library anything. The
-//! provider is named by `GEOGRAPHICLIB_TEST_PROVIDER`, an absolute path to a
-//! shared object exporting the 21 `geod_*` entry points; produce one with
-//! `zig build -Dlinkage=dynamic --prefix <dir>`, which installs
-//! `<dir>/lib/libgeodc.so`.
-//!
-//! Nothing here is skipped when that variable is absent. A runtime-loading build
-//! with no provider has nothing to test, and a case that quietly passed without
-//! one would say nothing at all, so every case below names the provider for
-//! itself and fails loudly when it cannot.
-//!
-//! `zig build test` runs this root through `addRunArtifact`, which hands the
-//! child the environment it inherited rather than the arguments after `--`, so
-//! the variable is the channel here by construction and no build-file change is
-//! needed for it to reach the tests.
+//! Behavioural tests use upstream regression values and independent geometry.
+//! Runtime-loading builds require `GEOGRAPHICLIB_TEST_PROVIDER`.
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -46,17 +10,13 @@ const geo = geographiclib;
 const wgs84_a = 6378137.0;
 const wgs84_f = 1.0 / 298.257223563;
 
-// ---- The provider -----------------------------------------------------------
-
-/// A shared object exporting all 21 entry points of `src/geodesic.h`.
+/// Environment variable naming the runtime provider.
 const provider_variable = "GEOGRAPHICLIB_TEST_PROVIDER";
 
-/// A directory no machine has, which is what makes the open failure below a real
-/// one rather than a guess about what might be missing.
+/// Path used to test a provider-open failure.
 const absent_provider = "/geographiclib-no-such-directory/libgeodc.so";
 
-/// What can be wrong with this file's own setup rather than with the library,
-/// plus whatever the loader itself refuses with.
+/// Setup and loader failures reported by these tests.
 const Setup = geo.LoadError || error{MissingProvider};
 
 /// The provider this process is using, or null when none has loaded yet.
@@ -68,16 +28,7 @@ fn inUse() ?[]const u8 {
     };
 }
 
-/// Load the configured provider, once, if this build needs one at all.
-///
-/// A linked build links `geod_*` and has nothing to load, so this returns
-/// immediately there and every case below is an ordinary direct call. A
-/// runtime-loading build has to be told, and the only two outcomes that mean
-/// anything are "a provider is in use" and "there is none"; the middle state is
-/// not a third thing a caller has to handle, so it reports the error instead.
-///
-/// The value is copied by the loader, which keeps its own copy for the life of
-/// the process, so the environment block it came from is released here.
+/// Load the configured provider once when this build uses runtime loading.
 fn loadProvider() Setup!void {
     if (!geo.runtime_loaded) return;
     if (inUse() != null) return;
@@ -102,8 +53,6 @@ fn loadProvider() Setup!void {
     try geo.load(.{ .path = value });
 }
 
-// ---- Harness ----------------------------------------------------------------
-
 fn expectNear(want: f64, got: f64, tolerance: f64) !void {
     if (std.math.isNan(want) or std.math.isNan(got)) {
         if (std.math.isNan(want) and std.math.isNan(got)) return;
@@ -121,28 +70,12 @@ fn expectNan(got: f64) !void {
     return error.TestUnexpectedResult;
 }
 
-/// The signed zero a case is about. `1 / x` is infinite for a zero and `-inf` for
-/// a negative zero, so it reads the sign without comparing it.
+/// Check for positive zero without comparing zero values.
 fn expectPositiveZero(got: f64) !void {
     if (got == 0.0 and 1.0 / got > 0.0) return;
     std.debug.print("expected +0.0, got {d}\n", .{got});
     return error.TestUnexpectedResult;
 }
-
-// ---- Which provider is in use -----------------------------------------------
-
-// These three cases are the loader's own lifecycle, and they sit above
-// everything else on purpose. The loader is process-global with no unload and
-// no reset, so "nothing has loaded yet" is a state this file is in exactly
-// once; a case that needed it again later could only be asserting about a state
-// it could not reach. A linked build has no loader at all, so the first two
-// have nothing to observe and say so by skipping. The third is the one place
-// where both configurations are asked the same question, because what the
-// library answers does not depend on how it was reached: it still solves
-// through the provider it was given, which in a linked build is the one linked
-// into the module. Its request half is guarded rather than skipped, because in
-// a linked build that half is unreachable rather than uninteresting - `load`
-// is a caller mistake there, not a no-op.
 
 test "a request that names nothing is refused before the platform is called" {
     if (!geo.runtime_loaded) return error.SkipZigTest;
@@ -151,7 +84,6 @@ test "a request that names nothing is refused before the platform is called" {
     try std.testing.expectError(error.EmptySource, geo.load(.{ .path = "" }));
     try std.testing.expectError(error.EmptySource, geo.load(.{ .system = "" }));
 
-    // Neither reached the platform, and neither published anything.
     try std.testing.expect(inUse() == null);
 }
 
@@ -159,20 +91,14 @@ test "a provider that cannot be opened publishes nothing, and the retry is the c
     if (!geo.runtime_loaded) return error.SkipZigTest;
     try std.testing.expect(inUse() == null);
 
-    // A path under a directory no machine has. The attempt fails and, being a
-    // failure, leaves no table behind: there is no partial state to call
-    // through, and the next call still sees an unloaded module.
+    // A failed load publishes no state and can be retried explicitly.
     try std.testing.expectError(error.OpenFailed, geo.load(.{ .path = absent_provider }));
     try std.testing.expect(inUse() == null);
 
-    // Nothing retries by itself. This call is the retry, and it is the only way
-    // forward.
     try loadProvider();
     try std.testing.expect(inUse() != null);
 
-    // And what was published is a working library, not a reachable table:
-    // Wellington to Salamanca, at upstream's own published figure
-    // (tests/geodtest.c:683-696).
+    // Upstream GeodSolve76 answer (`tests/geodtest.c:683-696`).
     var g: geo.Geodesic = undefined;
     geo.Geodesic.init(&g, wgs84_a, wgs84_f);
     try expectNear(19960543.857179, g.inverse(-(41.0 + 19.0 / 60.0), 174.0 + 49.0 / 60.0, 40.0 + 58.0 / 60.0, -(5.0 + 30.0 / 60.0)).s12, 0.5e-6);
@@ -181,54 +107,28 @@ test "a provider that cannot be opened publishes nothing, and the retry is the c
 test "the provider already in use stays in use, and a second one is refused" {
     try loadProvider();
 
-    // Idempotence and refusal are questions about a request, and a linked
-    // build has no request: `geographiclib.load` there is a caller mistake that
-    // stops the program rather than loading anything, and
-    // `geographiclib.loadedSource` is null because there is nothing to name.
-    // These two are the loader's own guarantees for a build that has one, so
-    // they are asked where there is a loader to answer them.
     if (geo.runtime_loaded) {
         const path = inUse() orelse return error.MissingProvider;
 
-        // A caller-side copy of those bytes rather than the loader's own slice,
-        // so the comparison after the refusal below is between the request this
-        // test asked for and the request the loader kept. Comparing the
-        // loader's slice with itself would say nothing.
+        // Keep a caller-owned copy for comparison with the retained request.
         const asked_for = try std.testing.allocator.dupe(u8, path);
         defer std.testing.allocator.free(asked_for);
 
-        // Asking for the provider already in use succeeds and changes nothing.
-        // A request is the bytes and the kind, not a pointer, so this is the
-        // same request in a different buffer.
         try geo.load(.{ .path = asked_for });
 
-        // A different provider is refused outright. There is no unload, no
-        // reset and no replacement, and the refusal is not a silent second
-        // choice either.
         try std.testing.expectError(error.ProviderMismatch, geo.load(.{ .path = absent_provider }));
 
-        // And the request that won is still the one in use: the refusal moved
-        // nothing, not even the request the loader keeps for the life of the
-        // process.
         const retained = inUse() orelse return error.MissingProvider;
         try std.testing.expectEqualStrings(asked_for, retained);
     }
 
-    // Which is observable in exactly one way: the answers. The library still
-    // solves through the provider it was given, which in a linked build is the
-    // one linked into the module. Wellington to Salamanca, at upstream's own
-    // published figure (tests/geodtest.c:683-696).
+    // Upstream GeodSolve76 answer (`tests/geodtest.c:683-696`).
     var g: geo.Geodesic = undefined;
     geo.Geodesic.init(&g, wgs84_a, wgs84_f);
     try expectNear(19960543.857179, g.inverse(-(41.0 + 19.0 / 60.0), 174.0 + 49.0 / 60.0, 40.0 + 58.0 / 60.0, -(5.0 + 30.0 / 60.0)).s12, 0.5e-6);
 }
 
-// ---- The upstream reference corpus -----------------------------------------
-
-/// `tests/geodtest.c:43-123`, all twenty rows, in order:
-/// lat1, lon1, azi1, lat2, lon2, azi2, s12, a12, m12, M12, M21, S12.
-/// Longitudes here run past ±180 on purpose: those rows only mean anything with
-/// the longitude unrolled.
+/// The twenty-row upstream table (`tests/geodtest.c:43-123`); longitudes are unrolled.
 const corpus = [20][12]f64{
     .{ 35.60777, -139.44815, 111.098748429560326, -11.17491, -69.95921, 129.289270889708762, 8935244.5604818305, 80.50729714281974, 6273170.2055303837, 0.16606318447386067, 0.16479116945612937, 12841384694976.432 },
     .{ 55.52454, 106.05087, 22.020059880982801, 77.03196, 197.18234, 109.112041110671519, 4105086.1713924406, 36.892740690445894, 3828869.3344387607, 0.80076349608092607, 0.80101006984201008, 61674961290615.615 },
@@ -309,7 +209,7 @@ test "the twenty-case corpus reproduces the direct solution in arc mode" {
     geo.Geodesic.init(&g, wgs84_a, wgs84_f);
     const options: geo.Options = .{ .arc_mode = true, .long_unroll = true };
     for (corpus) |row| {
-        // The arc length in, the distance in metres back out.
+        // Arc length in; distance in metres out.
         const got = g.genDirect(row[0], row[1], row[2], row[7], options);
         try expectNear(row[3], got.lat2, 1e-13);
         try expectNear(row[4], got.lon2, 1e-13);
@@ -332,15 +232,11 @@ test "the twenty-case corpus reproduces the basic direct solution" {
         const got = g.direct(row[0], row[1], row[2], row[6]);
         try expectNear(row[3], got.lat2, 1e-13);
         try expectNear(row[5], got.azi2, 1e-13);
-        // The basic entry point has no unroll option, so it answers with the
-        // same longitude inside [-180, 180] (src/geodesic.c:563). For a corpus
-        // row stated unrolled that is the row's longitude less whole turns.
+        // The basic direct call normalizes longitude (`src/geodesic.c:563`).
         const wrapped = row[4] - 360.0 * @round(row[4] / 360.0);
         try expectNear(wrapped, got.lon2, 1e-13);
     }
 }
-
-// ---- Upstream regressions ---------------------------------------------------
 
 test "GeodSolve0 and GeodSolve1: New York to Paris" {
     try loadProvider();
@@ -475,33 +371,22 @@ test "GeodSolve26 and GeodSolve28: a sphere and a flattening the series dislikes
 test "GeodSolve33: antipodal points on an oblate, a sphere and a prolate body" {
     try loadProvider();
 
-    // Three ellipsoids from the same rotational family, and the same question
-    // asked of each: where is the shortest way from a point to its antipode?
-    //
-    // On the oblate Earth the answer is over the pole, because the polar
-    // circumference is shorter than the equatorial one. On the sphere every
-    // direction ties. On the prolate body the equator is the shorter way round,
-    // so the geodesic leaves due east. Nothing about a triaxial body decides
-    // this with two numbers, which is exactly why this library has two.
+    // Compare antipodal shortest paths on oblate, spherical, and prolate bodies.
     var oblate: geo.Geodesic = undefined;
     geo.Geodesic.init(&oblate, wgs84_a, wgs84_f);
     const over_pole = oblate.inverse(0.0, 0.0, 0.0, 180.0);
     try expectNear(0.0, over_pole.azi1, 0.5e-5);
     try expectNear(180.0, @abs(over_pole.azi2), 0.5e-5);
     try expectNear(20003931.0, over_pole.s12, 0.5);
-    // Half the polar circumference: the path goes pole to pole over the top.
     try expectNear(20003931.0, over_pole.s12, 0.5);
     try expectNear(40007862.0, 2.0 * over_pole.s12, 1.0);
-    // Half the equatorial circumference is longer, and is not chosen.
     try std.testing.expect(over_pole.s12 < std.math.pi * wgs84_a);
-    // The same question one degree short of the antipode still goes east.
     try expectNear(90.0, oblate.inverse(0.0, 0.0, 0.0, 179.0).azi1, 0.5e-5);
     try expectNear(90.0, oblate.inverse(0.0, 0.0, 0.0, 179.0).azi2, 0.5e-5);
     try expectNear(19926189.0, oblate.inverse(0.0, 0.0, 0.0, 179.0).s12, 0.5);
     try expectNear(55.96650, oblate.inverse(0.0, 0.0, 0.0, 179.5).azi1, 0.5e-5);
     try expectNear(124.03350, oblate.inverse(0.0, 0.0, 0.0, 179.5).azi2, 0.5e-5);
     try expectNear(19980862.0, oblate.inverse(0.0, 0.0, 0.0, 179.5).s12, 0.5);
-    // Just north of the antipode the shortest way is still over the pole.
     try expectNear(19893357.0, oblate.inverse(0.0, 0.0, 1.0, 180.0).s12, 0.5);
 
     var sphere: geo.Geodesic = undefined;
@@ -509,8 +394,6 @@ test "GeodSolve33: antipodal points on an oblate, a sphere and a prolate body" {
     const tied = sphere.inverse(0.0, 0.0, 0.0, 180.0);
     try expectNear(std.math.pi * 6.4e6, tied.s12, 0.5);
     try expectNear(20106193.0, tied.s12, 0.5);
-    // A sphere has no preferred pole: north from the equator and east along it
-    // both give a quarter of the circumference.
     try expectNear(std.math.pi * 6.4e6 / 2.0, sphere.inverse(0.0, 0.0, 0.0, 90.0).s12, 1e-6);
     try expectNear(std.math.pi * 6.4e6 / 2.0, sphere.inverse(0.0, 0.0, 90.0, 0.0).s12, 1e-6);
     try expectNear(19994492.0, sphere.inverse(0.0, 0.0, 0.0, 179.0).s12, 0.5);
@@ -522,8 +405,6 @@ test "GeodSolve33: antipodal points on an oblate, a sphere and a prolate body" {
     try expectNear(90.0, along_equator.azi1, 0.5e-5);
     try expectNear(90.0, along_equator.azi2, 0.5e-5);
     try expectNear(20106193.0, along_equator.s12, 0.5);
-    // The equatorial route wins here, the opposite of the oblate case, and the
-    // same longitude difference answers differently a latitude away.
     try expectNear(33.02493, prolate.inverse(0.0, 0.0, 0.5, 180.0).azi1, 0.5e-5);
     try expectNear(146.97364, prolate.inverse(0.0, 0.0, 0.5, 180.0).azi2, 0.5e-5);
     try expectNear(20082617.0, prolate.inverse(0.0, 0.0, 0.5, 180.0).s12, 0.5);
@@ -546,13 +427,11 @@ test "GeodSolve55, 59 and 14: NaN input and points close across the antimeridian
     try expectNan(nan_lon.azi2);
     try expectNan(nan_lon.s12);
 
-    // GeodSolve94: a NaN latitude is not silently read as the equator.
     const nan_second = g.inverse(0.0, 0.0, std.math.nan(f64), 90.0);
     try expectNan(nan_second.azi1);
     try expectNan(nan_second.azi2);
     try expectNan(nan_second.s12);
 
-    // GeodSolve59: two points a hair apart across the antimeridian.
     const across = g.inverse(5.0, 0.00000000000001, 10.0, 180.0);
     try expectNear(0.000000000000035, across.azi1, 1.5e-14);
     try expectNear(179.99999999999996, across.azi2, 1.5e-14);
@@ -636,8 +515,7 @@ test "GeodSolve67: an inverse line just west of due south" {
     try expectNear(-180.0, far.lon2.?, 0.5e-5);
     try expectNear(0.0, far.azi2, 0.5e-5);
 
-    // Halfway along the reference distance lands on the other side of the pole,
-    // which is only right if `s13` was really set.
+    // The halfway sample requires a valid reference distance.
     const half = try line.genPosition(0.5 * line.referenceDistance(), unroll);
     try expectNear(-87.52461, half.lat2, 0.5e-5);
     try expectNear(0.0, half.lon2.?, 0.5e-5);
@@ -667,7 +545,7 @@ test "GeodSolve73: north over the pole and back keeps a positive zero azimuth" {
     const direct = g.direct(90.0, 10.0, 180.0, -1e6);
     try expectNear(81.04623, direct.lat2, 0.5e-5);
     try expectNear(-170.0, direct.lon2, 0.5e-5);
-    // Upstream normalises -0.0 to +0.0 here, and the sign is part of the answer.
+    // Upstream normalizes `-0.0` to `+0.0`; its sign is part of the result.
     try expectPositiveZero(direct.azi2);
 }
 
@@ -720,18 +598,14 @@ test "GeodSolve80: degenerate lines, zero-length geodesics and an incapable one"
     var g: geo.Geodesic = undefined;
     geo.Geodesic.init(&g, wgs84_a, wgs84_f);
 
-    // The geodesic scales of a quarter meridian on WGS84 are small and negative.
     const quarter = g.genInverse(0.0, 0.0, 0.0, 90.0);
     try expectNear(-0.00528427534, quarter.M12, 0.5e-10);
     try expectNear(-0.00528427534, quarter.M21, 0.5e-10);
 
-    // Two points one micrometre apart on the surface keep the scale at 1.
     const touching = g.genInverse(0.0, 0.0, 1e-6, 1e-6);
     try expectNear(1.0, touching.M12, 0.5e-10);
     try expectNear(1.0, touching.M21, 0.5e-10);
 
-    // A geodesic from a point to itself: no length, no reduced length, unit
-    // scales, and the azimuths are the due-north convention upstream defines.
     const identical = g.genInverse(20.001, 0.0, 20.001, 0.0);
     try expectNear(0.0, identical.a12, 1e-13);
     try expectNear(0.0, identical.s12, 1e-8);
@@ -745,7 +619,7 @@ test "GeodSolve80: degenerate lines, zero-length geodesics and an incapable one"
     try expectPositiveZero(identical.s12);
     try expectPositiveZero(identical.m12);
 
-    // Two points at the same pole: the area is the whole ellipsoid.
+    // Coincident points at the pole enclose the full ellipsoid area.
     const poles = g.genInverse(90.0, 0.0, 90.0, 180.0);
     try expectNear(0.0, poles.a12, 1e-13);
     try expectNear(0.0, poles.s12, 1e-8);
@@ -753,8 +627,7 @@ test "GeodSolve80: degenerate lines, zero-length geodesics and an incapable one"
     try expectNear(180.0, poles.azi2, 1e-13);
     try expectNear(127516405431022.0, poles.S12, 0.5);
 
-    // GeodSolve84: non-finite arguments are answered with NaN, never with a
-    // number derived from a value that was never there.
+    // Upstream GeodSolve84: non-finite inputs yield NaNs.
     const inf = std.math.inf(f64);
     const nan = std.math.nan(f64);
     try expectNan(g.direct(0.0, 0.0, 90.0, inf).lat2);
@@ -765,8 +638,7 @@ test "GeodSolve80: degenerate lines, zero-length geodesics and an incapable one"
     try expectNan(g.direct(0.0, 0.0, nan, 1000.0).lon2);
     try expectNan(g.direct(inf, 0.0, 90.0, 1000.0).lat2);
     try expectNan(g.direct(nan, 0.0, 90.0, 1000.0).lat2);
-    // A longitude that is not a number takes the longitude with it and leaves
-    // the rest of the answer alone.
+    // A non-finite longitude leaves latitude and azimuth unchanged.
     const bad_lon = g.direct(0.0, inf, 90.0, 1000.0);
     try expectNear(0.0, bad_lon.lat2, 0.0);
     try expectNan(bad_lon.lon2);
@@ -802,9 +674,7 @@ test "GeodSolve96: an area at the edge of the series" {
 test "GeodSolve100: a strongly prolate ellipsoid, where the meridian is not the shortest way" {
     try loadProvider();
 
-    // Upstream's own note records that this bug is absent for f >= -2 and that
-    // the bounds here are loose because the series is inaccurate for an
-    // ellipsoid this eccentric.
+    // Upstream uses loose tolerances for this inaccurate extreme-flattening case.
     var g: geo.Geodesic = undefined;
     geo.Geodesic.init(&g, 1e6, -3.0);
     const inverse = g.inverse(30.0, 0.0, 30.0, 180.0);
@@ -813,16 +683,13 @@ test "GeodSolve100: a strongly prolate ellipsoid, where the meridian is not the 
     try expectNear(1074081.6, inverse.s12, 1e3);
 }
 
-// ---- Capability and longitude semantics ------------------------------------
-
 test "a line reports the capabilities upstream granted, not the ones requested" {
     try loadProvider();
 
     var g: geo.Geodesic = undefined;
     geo.Geodesic.init(&g, wgs84_a, wgs84_f);
 
-    // An empty request is upstream's zero word, which upstream reads as the
-    // standard direct problem rather than as no capabilities at all.
+    // An empty mask selects the standard direct capabilities (`src/geodesic.h:342-344`).
     var standard: geo.GeodesicLine = undefined;
     g.initLine(&standard, 40.0, -75.0, -10.0, .{});
     const granted = standard.capabilities();
@@ -833,7 +700,6 @@ test "a line reports the capabilities upstream granted, not the ones requested" 
     try std.testing.expect(!granted.geodesic_scale);
     try std.testing.expect(!granted.area);
 
-    // A partial request is taken at face value.
     var partial: geo.GeodesicLine = undefined;
     g.initLine(&partial, 40.0, -75.0, -10.0, .{ .longitude = true });
     const some = partial.capabilities();
@@ -854,8 +720,7 @@ test "a line that cannot take a distance refuses, and arc mode still works" {
     try std.testing.expectError(error.DistanceNotAccepted, line.genPosition(1000.0, .{}));
     try std.testing.expectError(error.DistanceNotAccepted, line.genPosition(1000.0, .{ .long_unroll = true }));
 
-    // Arc mode measures in degrees and needs no distance capability
-    // (src/geodesic.c:467-471), so the same line answers this one.
+    // Arc mode needs no distance-input capability (`src/geodesic.c:467-471`).
     const by_arc = try line.genPosition(10.0, .{ .arc_mode = true });
     try expectNear(10.0, by_arc.a12, 0.0);
     try std.testing.expect(by_arc.lon2 != null);
@@ -869,19 +734,14 @@ test "unrequested line outputs are absent, never invented" {
     var g: geo.Geodesic = undefined;
     geo.Geodesic.init(&g, wgs84_a, wgs84_f);
     var line: geo.GeodesicLine = undefined;
-    // `distance_in` is granted here precisely because it sets the low `CAP_C1`
-    // bit that `GEOD_DISTANCE`, `GEOD_REDUCEDLENGTH` and `GEOD_GEODESICSCALE`
-    // also carry (`src/geodesic.h:815-818`). It lets the line take the distance
-    // without letting it report one, so a test that asked for the wrong thing
-    // would read memory upstream never wrote.
+    // Coefficient bits overlap output bits, so test only output capability bits (`src/geodesic.h:815-818`).
+    // A line can accept distance input without producing distance or scales.
     g.initLine(&line, 40.0, -75.0, -10.0, .{ .longitude = true, .distance_in = true, .area = true });
 
     const here = try line.position(1e6);
     try std.testing.expect(here.lon2 != null);
     try std.testing.expect(here.S12 != null);
-    // Upstream leaves these outputs untouched and says so
-    // (src/geodesic.h:522-523), so the facade reports them as absent rather than
-    // reporting a number it did not read.
+    // Upstream leaves unavailable outputs unwritten (`src/geodesic.h:522-523`).
     try std.testing.expect(here.s12 == null);
     try std.testing.expect(here.m12 == null);
     try std.testing.expect(here.M12 == null);
@@ -889,7 +749,6 @@ test "unrequested line outputs are absent, never invented" {
     try std.testing.expect(!std.math.isNan(here.lat2));
     try std.testing.expect(!std.math.isNan(here.azi2));
 
-    // With the capability granted, the very same call fills them in.
     var full: geo.GeodesicLine = undefined;
     g.initLine(&full, 40.0, -75.0, -10.0, .{
         .longitude = true,
@@ -913,9 +772,7 @@ test "an unrolled longitude is an input as well as an output" {
     var g: geo.Geodesic = undefined;
     geo.Geodesic.init(&g, wgs84_a, wgs84_f);
 
-    // The corpus rows carry longitudes well outside ±180. The same two points
-    // named one turn apart give the same position and the same distance; only
-    // the unrolled longitude differs, and it differs by exactly one turn.
+    // Adding a longitude turn preserves position and distance; unrolled output retains it.
     const direct_at = g.genDirect(35.60777, -139.44815, 111.098748429560326, 8935244.5604818305, .{ .long_unroll = true });
     const direct_shifted = g.genDirect(35.60777, 220.55185, 111.098748429560326, 8935244.5604818305, .{ .long_unroll = true });
     try expectNear(-11.17491, direct_at.lat2, 1e-13);
@@ -925,20 +782,17 @@ test "an unrolled longitude is an input as well as an output" {
     try expectNear(direct_at.s12, direct_shifted.s12, 0.0);
     try expectNear(direct_at.lon2 + 360.0, direct_shifted.lon2, 1e-12);
 
-    // The same pair asked of the inverse problem with `lon2` outside the usual
-    // range is neither rejected nor wrapped (src/geodesic.c:729-736).
+    // Inverse accepts unrolled longitudes (`src/geodesic.c:729-736`).
     const wrapped = g.inverse(35.60777, -139.44815, -11.17491, 290.04079);
     try expectNear(8935244.5604818305, wrapped.s12, 1e-8);
     try expectNear(111.098748429560326, wrapped.azi1, 1e-13);
 
-    // A line keeps the longitude it was given, unrolled included.
+    // A line preserves its starting longitude, including turns.
     var line: geo.GeodesicLine = undefined;
     g.initLine(&line, 40.0, -435.0, -10.0, .{});
     try expectNear(-435.0, line.lon1(), 0.0);
 
-    // The unrolled answer counts the turns from the longitude the line was
-    // given: 20000 km heading 170W travels 179 degrees west, so from 435E the
-    // answer is 614E rather than 254E.
+    // Unrolled output is relative to the starting longitude.
     try expectNear(-614.0, (try line.genPosition(2e7, .{ .long_unroll = true })).lon2.?, 1.0);
     try expectNear(106.0, (try line.genPosition(2e7, .{})).lon2.?, 1.0);
 }
@@ -949,7 +803,7 @@ test "naming point 3 by distance and by arc length" {
     var g: geo.Geodesic = undefined;
     geo.Geodesic.init(&g, wgs84_a, wgs84_f);
 
-    // `initLine` names no point 3, so both reference fields are NaN.
+    // `initLine` leaves both reference values NaN until point 3 is set.
     var bare: geo.GeodesicLine = undefined;
     g.initLine(&bare, 40.0, -75.0, -10.0, .{ .distance_in = true, .distance = true });
     try expectNan(bare.referenceDistance());
@@ -959,15 +813,13 @@ test "naming point 3 by distance and by arc length" {
     try expectNear(1e7, bare.referenceDistance(), 0.0);
     try std.testing.expect(!std.math.isNan(bare.referenceArcLength()));
 
-    // Arc mode, with the distance capability, gives both.
     var by_arc: geo.GeodesicLine = undefined;
     g.initLine(&by_arc, 40.0, -75.0, -10.0, .{ .distance = true });
     by_arc.setArcLength(90.0);
     try expectNear(90.0, by_arc.referenceArcLength(), 0.0);
     try std.testing.expect(!std.math.isNan(by_arc.referenceDistance()));
 
-    // Arc mode without it: upstream writes no distance, so the field stays at
-    // the NaN it was just given (src/geodesic.c:649-653).
+    // Without `Caps.distance`, arc mode leaves reference distance unchanged (`src/geodesic.c:649-653`).
     var no_distance: geo.GeodesicLine = undefined;
     g.initLine(&no_distance, 40.0, -75.0, -10.0, .{ .longitude = true });
     no_distance.setArcLength(90.0);
@@ -978,8 +830,7 @@ test "naming point 3 by distance and by arc length" {
 test "a line outlives the ellipsoid variable that built it" {
     try loadProvider();
 
-    // Upstream copies the two numbers it needs out of `geod_geodesic`
-    // (src/geodesic.c:338-339), so nothing here borrows the ellipsoid.
+    // Upstream copies the needed ellipsoid fields into the line (`src/geodesic.c:338-339`).
     var line: geo.GeodesicLine = undefined;
     {
         var temporary: geo.Geodesic = undefined;
@@ -991,8 +842,6 @@ test "a line outlives the ellipsoid variable that built it" {
     try expectNear(-75.0, here.lon2.?, 1e-9);
     try expectNan(line.referenceDistance());
 }
-
-// ---- Planimeter -------------------------------------------------------------
 
 fn addRing(p: *geo.Polygon, g: *const geo.Geodesic, points: []const [2]f64) void {
     for (points) |point| p.addPoint(g, point[0], point[1]);
@@ -1029,7 +878,6 @@ test "Planimeter0: rings that encircle a pole" {
     try expectNear(30022685.0, p.compute(&g, options).perimeter, 1.0);
     try expectNear(63758202715511.0, p.compute(&g, options).area.?, 1.0);
 
-    // The same three points as a polyline: a length and no area at all.
     var line: geo.Polygon = geo.Polygon.init(.polyline);
     addRing(&line, &g, &corner);
     const walked = line.compute(&g, options);
@@ -1050,8 +898,7 @@ test "Planimeter5, 6, 12, 12r and 13: longitudes outside the usual range" {
     try expectNear(539297.0, p.compute(&g, options).perimeter, 1.0);
     try expectNear(12476152838.5, p.compute(&g, options).area.?, 1.0);
 
-    // Planimeter6: a hair east or west of the prime meridian, at the antimeridian,
-    // and at the prime meridian again. All four are the same polygon.
+    // These rings straddle the prime meridian and antimeridian.
     const rings = [_][3][2]f64{
         .{ .{ 9, -0.00000000000001 }, .{ 9, 180 }, .{ 9, 0 } },
         .{ .{ 9, 0.00000000000001 }, .{ 9, 0 }, .{ 9, 180 } },
@@ -1065,8 +912,7 @@ test "Planimeter5, 6, 12, 12r and 13: longitudes outside the usual range" {
         try expectNear(0.0, p.compute(&g, options).area.?, 1.0);
     }
 
-    // Planimeter12 and its mirror: longitudes of 0, 180, 360 and of -0, -180,
-    // -360 name the same three meridians, and the polygon is degenerate.
+    // Longitudes separated by full turns name the same meridians.
     const east = [_][2]f64{ .{ 66.562222222, 0 }, .{ 66.562222222, 180 }, .{ 66.562222222, 360 } };
     p.clear();
     addRing(&p, &g, &east);
@@ -1079,7 +925,6 @@ test "Planimeter5, 6, 12, 12r and 13: longitudes outside the usual range" {
     try expectNear(10465729.0, p.compute(&g, options).perimeter, 1.0);
     try expectNear(0.0, p.compute(&g, options).area.?, 1.0);
 
-    // Planimeter13: one lap of a parallel at 89N.
     const twice = [_][2]f64{ .{ 89, -360 }, .{ 89, -240 }, .{ 89, -120 }, .{ 89, 0 }, .{ 89, 120 }, .{ 89, 240 } };
     p.clear();
     addRing(&p, &g, &twice);
@@ -1116,13 +961,10 @@ test "Planimeter15 and 21: reverse, sign, and repeated laps around a parallel" {
     try expectNear(-triangle_area, p.compute(&g, .{ .reverse = true, .sign = true }).area.?, 0.5);
     try expectNear(earth_area - triangle_area, p.compute(&g, .{ .reverse = true, .sign = false }).area.?, 0.5);
 
-    // The array entry point agrees with the accumulator, which is a different
-    // upstream function reached a different way.
     const lats = [_]f64{ 2, 1, 3 };
     const lons = [_]f64{ 1, 2, 3 };
     try expectNear(triangle_area, (try g.arrayArea(&lats, &lons)).area.?, 0.5);
 
-    // Planimeter21: the complete published three- and four-lap sequence.
     const lap = 39433884866571.4277;
     const edge_azi = 39.2144607176828184218;
     const edge_s = 8420705.40957178156285;
@@ -1175,11 +1017,9 @@ test "Planimeter19: degenerate polygons have defined answers" {
     try expectNear(0.0, one_tentative.area.?, 0.0);
     try expectNear(0.0, one_tentative.perimeter, 0.0);
 
-    // With no vertex to step from, upstream answers NaN and zero vertices; the
-    // facade refuses instead, and says which refusal it is.
+    // Empty `testEdge` has no starting vertex; the facade returns `NoPointsYet`.
     try std.testing.expectError(error.NoPointsYet, p.testEdge(&g, 90.0, 1000.0, options));
 
-    // One real vertex is still too few to close anything.
     p.addPoint(&g, 1.0, 1.0);
     const one_vertex = p.compute(&g, options);
     try expectNear(0.0, one_vertex.area.?, 0.0);
@@ -1192,8 +1032,7 @@ test "Planimeter19: degenerate polygons have defined answers" {
     try std.testing.expect(line.testPoint(&g, 1.0, 1.0, options).area == null);
     try std.testing.expectError(error.NoPointsYet, line.testEdge(&g, 90.0, 1000.0, options));
 
-    // A polyline of two coincident vertices has zero length; adding a third a
-    // kilometre away makes the tentative edge exactly that kilometre.
+    // A tentative polyline edge adds only its segment length.
     line.addPoint(&g, 1.0, 1.0);
     try expectNear(0.0, line.compute(&g, options).perimeter, 0.0);
     line.addPoint(&g, 1.0, 1.0);
@@ -1215,7 +1054,7 @@ test "Planimeter29: a kilometre square walked by azimuth" {
     try expectNear(4000.0, p.compute(&g, .{}).perimeter, 1.0);
     try expectNear(1000000.0, p.compute(&g, .{ .sign = true }).area.?, 0.01);
 
-    // `addEdge` before any point adds nothing at all (src/geodesic.c:1850).
+    // `addEdge` on an empty polygon is a no-op (`src/geodesic.c:1850`).
     var empty: geo.Polygon = geo.Polygon.init(.polygon);
     empty.addEdge(&g, 90.0, 1000.0);
     try std.testing.expect(empty.num() == 0);
@@ -1230,19 +1069,13 @@ test "the array entry point refuses a length mismatch" {
     const lons = [_]f64{ 0, 1 };
     try std.testing.expectError(error.MismatchedLengths, g.arrayArea(&lats, &lons));
 
-    // Upstream is given one count for both arrays, so this is a bound the C
-    // cannot express and the facade has to state.
     const nothing: []const f64 = &.{};
     const empty = try g.arrayArea(nothing, nothing);
     try std.testing.expect(empty.num == 0);
     try expectNear(0.0, empty.area.?, 0.0);
 }
 
-// ---- One-time initialisation under concurrency ------------------------------
-
-/// The work each spawned thread does: reach the one-time initialisation, build
-/// an ellipsoid, and record one published answer. Declared at file scope so
-/// `std.Thread.spawn` is handed a plain function rather than a method value.
+/// Each worker initializes the library and records one independent result.
 fn prepareThenSolve(out: *f64) void {
     geographiclib.prepare();
     var g: geo.Geodesic = undefined;
@@ -1255,13 +1088,8 @@ test "prepare serialises the first use when threads exist" {
 
     try loadProvider();
 
-    // `geod_init` triggers a process-global unsynchronised computation inside
-    // the C (src/geodesic.c:59-90, `:302-303`). `prepare` runs it once under a
-    // compare-exchange and publishes it with a release store, so a thread that
-    // arrives later cannot see a half-initialised library. Spawning every
-    // thread into the same first use is the only way to observe that from here,
-    // and each thread then gets the same answer, which is the property that
-    // matters.
+    // Upstream first-use initialization is unsynchronized (`src/geodesic.c:59-90`, `:302-303`).
+    // `prepare()` publishes the initialized state before concurrent calls.
     const threads = 8;
     var handles: [threads]std.Thread = undefined;
     var results: [threads]f64 = undefined;
