@@ -42,7 +42,7 @@ const c_flags_dynamic = c_flags ++ c_flags_shared;
 
 fn cUnitFlags(
     target: std.Build.ResolvedTarget,
-    linkage: std.builtin.LinkMode,
+    linkage: std.lang.LinkMode,
 ) []const []const u8 {
     const shared = linkage == .dynamic and !exportsThroughDeclspec(target);
     return if (shared) &c_flags_dynamic else &c_flags;
@@ -139,7 +139,7 @@ fn exportsThroughDeclspec(target: std.Build.ResolvedTarget) bool {
 /// Windows loads DLLs without an interpreter path; other shared targets need a dynamic linker.
 fn targetCanCarry(
     target: std.Build.ResolvedTarget,
-    requested: std.builtin.LinkMode,
+    requested: std.lang.LinkMode,
 ) bool {
     return requested == .static or target.result.os.tag == .windows or std.Target.DynamicLinker.kind(target.result.os.tag) != .none;
 }
@@ -156,7 +156,7 @@ fn unsupportedLinkageReason(b: *std.Build, target: std.Build.ResolvedTarget) []c
 fn requireSupportedLinkage(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    requested: std.builtin.LinkMode,
+    requested: std.lang.LinkMode,
 ) void {
     if (!targetCanCarry(target, requested)) {
         @panic(unsupportedLinkageReason(b, target));
@@ -166,8 +166,8 @@ fn requireSupportedLinkage(
 fn addCLibrary(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    linkage: std.builtin.LinkMode,
+    optimize: std.lang.Optimize,
+    linkage: std.lang.LinkMode,
     name: []const u8,
 ) *std.Build.Step.Compile {
     const c_lib = b.addLibrary(.{
@@ -211,8 +211,8 @@ fn addCLibrary(
 fn addGraph(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    linkage: std.builtin.LinkMode,
+    optimize: std.lang.Optimize,
+    linkage: std.lang.LinkMode,
     runtime_loaded: bool,
     public: bool,
 ) Graph {
@@ -279,7 +279,7 @@ fn addGraph(
 fn facadeProgram(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
+    optimize: std.lang.Optimize,
     facade: *std.Build.Module,
     source: []const u8,
 ) *std.Build.Module {
@@ -296,7 +296,7 @@ fn facadeProgram(
 fn addExercise(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
+    optimize: std.lang.Optimize,
     graph: Graph,
     runtime_loaded: bool,
     name: []const u8,
@@ -321,7 +321,7 @@ fn addExercise(
 fn addUpstreamTest(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
+    optimize: std.lang.Optimize,
     graph: Graph,
     spec: UpstreamTest,
     name: []const u8,
@@ -412,8 +412,8 @@ fn addTargetCheck(
     b: *std.Build,
     step: *std.Build.Step,
     query: std.Target.Query,
-    optimize: std.builtin.OptimizeMode,
-    linkage: std.builtin.LinkMode,
+    optimize: std.lang.Optimize,
+    linkage: std.lang.LinkMode,
     runtime_loaded: bool,
 ) void {
     const cross_target = b.resolveTargetQuery(query);
@@ -473,7 +473,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const linkage = b.option(
-        std.builtin.LinkMode,
+        std.lang.LinkMode,
         "linkage",
         "Deliver the native library as a static archive (the default, and what " ++
             "this build has always produced) or as a real shared object. The " ++
@@ -515,7 +515,7 @@ pub fn build(b: *std.Build) void {
     // Run the example without depending on the install layout.
     const run_example = b.addRunArtifact(example);
     run_example.has_side_effects = true;
-    if (b.args) |args| run_example.addArgs(args);
+    run_example.addPassthruArgs();
     b.step("smoke", "Run the deterministic example program").dependOn(&run_example.step);
 
     const consumer = b.addExecutable(.{
@@ -525,7 +525,7 @@ pub fn build(b: *std.Build) void {
     const run_consumer = b.addRunArtifact(consumer);
     run_consumer.has_side_effects = true;
     // Forward arguments so runtime consumers can name the provider path.
-    if (b.args) |args| run_consumer.addArgs(args);
+    run_consumer.addPassthruArgs();
     b.step("consumer", "Run the module consumer").dependOn(&run_consumer.step);
 
     const unit_tests = b.addTest(.{
@@ -558,7 +558,7 @@ pub fn build(b: *std.Build) void {
     for (upstream_tests) |spec| {
         const program = addUpstreamTest(b, target, optimize, graph, spec, spec.name);
         const run = b.addRunArtifact(program);
-        if (b.args) |args| run.addArgs(args);
+        run.addPassthruArgs();
         upstream_step.dependOn(&run.step);
     }
 

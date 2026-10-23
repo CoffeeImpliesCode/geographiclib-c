@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 {
-  description = "GeographicLib-C built from this repository, as a Zig 0.16 package";
+  description = "GeographicLib-C built from this repository, as a Zig 0.17 package";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/c7def046b9a883d46974757852106483d741586f";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/02c087f3fe673c9e317f206a627cb6b910336dbe";
 
   outputs =
     { self, nixpkgs }:
@@ -21,7 +21,7 @@
       geodc =
         pkgs: linkage:
         pkgs.callPackage ./package.nix {
-          zig = pkgs.zig_0_16;
+          zig = pkgs.zig_0_17;
           inherit linkage;
         };
     in

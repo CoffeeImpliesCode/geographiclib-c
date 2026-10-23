@@ -4,7 +4,7 @@
     // Upstream version (CMakeLists.txt:5-13; src/geodesic.h:29,34,39).
     .version = "2.2.0",
     .fingerprint = 0x3074e6218ff3adac, // Changing this has security and trust implications.
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{},
     .paths = .{
         "build.zig",

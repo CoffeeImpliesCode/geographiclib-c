@@ -5,7 +5,7 @@
 }:
 
 let
-  zig = pkgs.zig_0_16;
+  zig = pkgs.zig_0_17;
 
   geodc =
     linkage:
@@ -63,9 +63,9 @@ in
 
   assertions = [
     {
-      assertion = zig.version == "0.16.0";
+      assertion = zig.version == "0.17.0";
       message = ''
-        src/ and zig/ are written against Zig 0.16.0; nixpkgs supplies
+        src/ and zig/ are written against Zig 0.17.0; nixpkgs supplies
         ${zig.version}.
       '';
     }

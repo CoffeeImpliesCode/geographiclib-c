@@ -1,6 +1,6 @@
 # geographiclib-c
 
-Builds upstream GeographicLib-C v2.2 as a Zig 0.16 package. It provides the native C library and a typed Zig facade for direct and inverse geodesics on an ellipsoid of revolution.
+Builds upstream GeographicLib-C v2.2 as a Zig 0.17.0 package. It provides the native C library and a typed Zig facade for direct and inverse geodesics on an ellipsoid of revolution.
 
 ## Source deviations from upstream
 
