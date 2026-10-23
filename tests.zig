@@ -705,7 +705,6 @@ test "a line reports the capabilities upstream granted, not the ones requested" 
     const some = partial.capabilities();
     try std.testing.expect(some.longitude);
     try std.testing.expect(!some.distance_in);
-
 }
 
 test "a line that cannot take a distance refuses, and arc mode still works" {

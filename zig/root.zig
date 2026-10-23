@@ -56,7 +56,6 @@ pub const Error = error{
 };
 
 /// Capability bits from upstream `geod_mask` (`src/geodesic.h:810-821`).
-
 pub const mask = struct {
     /// Upstream `GEOD_NONE`.
     pub const none: u32 = 0;
