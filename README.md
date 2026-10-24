@@ -33,10 +33,8 @@ This table describes math-library linkage, not platform support. The package mak
 
 Add the package to `build.zig.zon`:
 
-```zig
-.dependencies = .{
-    .geographiclib_c = .{ .path = "../geographiclib-c" },
-},
+```sh
+zig fetch --save git+https://github.com/CoffeeImpliesCode/geographiclib-c#v2.2.0
 ```
 
 Import its module from `build.zig`:
